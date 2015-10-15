@@ -1,0 +1,129 @@
+---
+title: "RepData_PeerAssessment"
+author: "Alvaro Fierro"
+date: "15 de octubre de 2015"
+output: html_document
+---
+
+
+## Loading and preprocessing the data
+```{r}
+setwd("C:/Users/Usuario/Google Drive/R programming/5. Reproducible Research/")
+activity<-read.csv("activity.csv")
+days<-levels(factor(activity$date))
+library(doBy)
+steps_per_date<-summaryBy(steps~date, data=activity, FUN=sum)
+#average_steps_per_date<-summaryBy(steps~date, data=activity, FUN=mean)
+
+```
+
+```{r, echo=FALSE}
+hist(steps_per_date$steps.sum, xlab= "Num steps per day", breaks=20)
+```
+
+## What is mean total number of steps taken per day?
+```{r computetime, echo=FALSE}
+media <- format(round(mean(steps_per_date$steps.sum, na.rm=TRUE)), scientific=FALSE)
+mediana <- format(round(median(steps_per_date$steps.sum, na.rm=TRUE)), scientific = FALSE)
+```
+
+The mean of the number of steps per day is `r media` and the median is `r mediana`.
+
+# What is the average daily activity pattern?
+
+```{r}
+# Create a matrix (61 days x 288 periods of 5 minutes) that contains 
+# by column, the activity each 5-minutes period of time for the 61 days
+five_minutes_steps_average<-matrix(activity$steps,byrow=TRUE,ncol =288)
+
+# Compute the average per column: a vector with 288 positions, 1 per 
+# 5-minutes interval of the day, that corresponds to the mean of the 61 days
+library(Matrix)
+five_minutes_steps_average_per_day<-colMeans(five_minutes_steps_average, na.rm=TRUE)
+```
+
+```{r, echo=FALSE}
+plot(c(1:288),five_minutes_steps_average_per_day,type="l",xlab="period of 5 minutes of the day",ylab="average across 61 days", main="Activity pattern")
+```
+
+
+```{r computeSteps}
+max_steps <- which(five_minutes_steps_average_per_day==max(five_minutes_steps_average_per_day))
+step_hour <- round(max_steps/12)
+
+```
+
+The 5-minute interval, on average across all the days in the dataset, that contains the maximum number of steps is `r max_steps` that corresponds to the `r step_hour` th hour of the day.
+
+## Imputing missing values
+
+```{r}
+# Calculate missing values
+
+# Total number
+num_na <- sum(is.na(activity$steps))
+
+# Number of missing values per day
+library(matrixStats)
+col_na <- apply(five_minutes_steps_average,2,is.na)
+colCounts(col_na)
+# We see that the missing values are located at the same 5-minutes moments every day!
+# There are 8 missing values every day
+
+# Replace missing values with average per 5-minutes chunk of time. This value is 
+# contained in the vector «five_minutes_steps_average_per_day».
+
+for (col in 1: dim(five_minutes_steps_average)[2]) { # perform on every column
+        # replace null values with corresponding 5-minutes chunk average
+  five_minutes_steps_average[which(is.na(five_minutes_steps_average[,col])),col] <-five_minutes_steps_average_per_day[col]
+}
+
+# In order to calculate total number of steps per day, we perform  the sum of 
+# five_minutes_steps_average per rows
+steps_per_day<-apply(five_minutes_steps_average,1,sum)
+
+# Perform mean and median
+steps_per_day_mean<-format(round(mean(steps_per_day)), scientific=FALSE)
+steps_per_day_median<-format(round(median(steps_per_day)), scientific=FALSE)
+
+```
+
+The total number of missing values in the dataset is `r num_na`. 
+The strategy we are going to follow in order to fill in those NA values is to choose 
+the average for all days of the 5-minute available values that correspond to that chunk of time.
+
+```{r, echo=FALSE}
+hist(steps_per_day, xlab= "Num steps per day", main="Num steps per day replacing NA with average per 5-minutes chunk", breaks=20)
+```
+
+The mean of this dataset with no NA values is `r steps_per_day_mean` and the median is `r steps_per_day_median`. These two values are the same that those of the dataset with NA values because the unavailable values have been replaced by means, thus not altering these two measures. Nevertheless,
+the histogram shows higher accounts due to the fact that 2304 values that were not present in the initial graph have been now included.
+
+## Are there differences in activity patterns between weekdays and weekends?
+```{r}
+# Grab day of the week
+activity$day_week<-weekdays(as.Date(activity$date))
+
+# Factor weekday / weekend
+activity$day_type<-lapply(activity$day_week, function(x) if(x=="sábado" ||x=="domingo") "weekend" else "weekday")
+
+# Subset weekday/weekend
+weekday_activity<-activity[which(activity$day_type=="weekday"),]
+weekend_activity<-activity[which(activity$day_type=="weekend"),]
+
+```
+
+```{r, echo=FALSE}
+
+par(mfrow=c(2,1))
+a<-c(1:(dim(weekday_activity)[1]))
+plot(weekday_activity$steps,type="l",xlab="periods of 5 minutes",ylab="average across 61 days", main="Weekday activity pattern")
+abline(a=550,b=0)
+
+b<-c(1:(dim(weekend_activity)[1]))
+plot(weekend_activity$steps,type="l",xlab="periods of 5 minutes",ylab="average across 61 days", main="Weekend activity pattern")
+abline(a=550,b=0)
+```
+
+The plots show different activity patterns between weekdays and weekends. During saturdays and sundays, peak activity only goes beyond a value of 550 in three occasions at the end of the considered period of time, whereas this threshold is exceeded usually during weekdays. 
+
